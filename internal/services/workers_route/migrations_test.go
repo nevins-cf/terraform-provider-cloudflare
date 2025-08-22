@@ -14,35 +14,30 @@ import (
 	"github.com/cloudflare/terraform-provider-cloudflare/internal/utils"
 )
 
+func TestMain(m *testing.M) {
+	resource.TestMain(m)
+}
+
 // TestMigrateWorkersRouteMigrationFromV4Basic tests basic migration from v4 to v5
 func TestMigrateWorkersRouteMigrationFromV4Basic(t *testing.T) {
 	zoneID := os.Getenv("CLOUDFLARE_ZONE_ID")
-	accountID := os.Getenv("CLOUDFLARE_ACCOUNT_ID")
 	rnd := utils.GenerateRandomResourceName()
 	resourceName := "cloudflare_workers_route." + rnd
 	tmpDir := t.TempDir()
 	scriptName := fmt.Sprintf("test-script-%s", rnd)
 
-	// V4 config using script_name attribute - create worker first, then route
+	// V4 config using script_name attribute
 	v4Config := fmt.Sprintf(`
-resource "cloudflare_workers_script" "test_script_%[1]s" {
-  account_id = "%[4]s"
-  name       = "%[3]s"
-  content    = "addEventListener('fetch', event => { event.respondWith(new Response('Hello World')); });"
-}
-
 resource "cloudflare_workers_route" "%[1]s" {
   zone_id     = "%[2]s"
   pattern     = "example.cfapi.net/*"
   script_name = "%[3]s"
-  depends_on  = [cloudflare_workers_script.test_script_%[1]s]
-}`, rnd, zoneID, scriptName, accountID)
+}`, rnd, zoneID, scriptName)
 
 	resource.Test(t, resource.TestCase{
 		PreCheck: func() {
 			acctest.TestAccPreCheck(t)
 			acctest.TestAccPreCheck_ZoneID(t)
-			acctest.TestAccPreCheck_AccountID(t)
 		},
 		WorkingDir: tmpDir,
 		Steps: []resource.TestStep{
@@ -112,32 +107,23 @@ resource "cloudflare_workers_route" "%[1]s" {
 // TestMigrateWorkersRouteMigrationFromV4SingleResource tests migration using singular resource name
 func TestMigrateWorkersRouteMigrationFromV4SingleResource(t *testing.T) {
 	zoneID := os.Getenv("CLOUDFLARE_ZONE_ID")
-	accountID := os.Getenv("CLOUDFLARE_ACCOUNT_ID")
 	rnd := utils.GenerateRandomResourceName()
-	resourceName := "cloudflare_workers_route." + rnd  // After migration, resource will be renamed
+	resourceName := "cloudflare_worker_route." + rnd
 	tmpDir := t.TempDir()
 	scriptName := fmt.Sprintf("test-script-%s", rnd)
 
-	// V4 config using old singular resource name - create worker first, then route
+	// V4 config using old singular resource name
 	v4Config := fmt.Sprintf(`
-resource "cloudflare_worker_script" "test_script_%[1]s" {
-  account_id = "%[4]s"
-  name       = "%[3]s"
-  content    = "addEventListener('fetch', event => { event.respondWith(new Response('Hello World')); });"
-}
-
 resource "cloudflare_worker_route" "%[1]s" {
   zone_id     = "%[2]s"
   pattern     = "*.cfapi.net/v1/*"
   script_name = "%[3]s"
-  depends_on  = [cloudflare_worker_script.test_script_%[1]s]
-}`, rnd, zoneID, scriptName, accountID)
+}`, rnd, zoneID, scriptName)
 
 	resource.Test(t, resource.TestCase{
 		PreCheck: func() {
 			acctest.TestAccPreCheck(t)
 			acctest.TestAccPreCheck_ZoneID(t)
-			acctest.TestAccPreCheck_AccountID(t)
 		},
 		WorkingDir: tmpDir,
 		Steps: []resource.TestStep{
@@ -151,7 +137,7 @@ resource "cloudflare_worker_route" "%[1]s" {
 				},
 				Config: v4Config,
 			},
-			// Step 2: Run migration and verify state
+			// Step 2: Run migration and verify state (note: resource name should be updated by Grit)
 			acctest.MigrationTestStep(t, v4Config, tmpDir, "4.52.1", []statecheck.StateCheck{
 				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("zone_id"), knownvalue.StringExact(zoneID)),
 				statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("pattern"), knownvalue.StringExact("*.cfapi.net/v1/*")),

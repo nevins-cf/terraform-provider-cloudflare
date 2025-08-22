@@ -334,8 +334,17 @@ func transformFile(content []byte, filename string) ([]byte, error) {
 			// Process DNS record to fix CAA flags
 			ProcessDNSRecordConfig(file)
 		}
+
 		if isSpectrumApplicationResource(block) {
 			transformSpectrumApplicationBlock(block, diags)
+		}
+
+		if isWorkersRouteResource(block) {
+			transformWorkersRouteBlock(block, diags)
+		}
+
+		if isWorkersScriptResource(block) {
+			transformWorkersScriptBlock(block, diags)
 		}
 	}
 
