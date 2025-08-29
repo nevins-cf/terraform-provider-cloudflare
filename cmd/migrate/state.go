@@ -201,10 +201,6 @@ func transformStateJSON(data []byte) ([]byte, error) {
 	// This must happen after all individual resource state transformations
 	result = migrateWorkersSecretsInState(result)
 
-	// Perform cross-resource state migration for cloudflare_list_item -> cloudflare_list items
-	// This must happen after all individual resource state transformations
-	result = migrateListItemsInState(result)
-
 	// Pretty format with proper indentation
 	j := pretty.PrettyOptions([]byte(result), &pretty.Options{
 		Indent:   "  ",

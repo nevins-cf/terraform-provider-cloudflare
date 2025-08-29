@@ -355,9 +355,7 @@ func transformFile(content []byte, filename string) ([]byte, error) {
 			transformWorkersDomainBlock(block, diags)
 		}
 
-		if isWorkersSecretResource(block) {
-			transformWorkersSecretBlock(block, diags)
-		}
+		// Note: workers_secret resources are handled by cross-resource migration below
 	}
 
 	// Merge cloudflare_list_item resources into their parent lists
