@@ -63,36 +63,12 @@ jobs:
           TF_ACC: 1
           NO_GRIT: true
         continue-on-error: true
-
-      - name: Run Magic Migration Tests
-        id: magic_migration_tests
-        run: ./scripts/run-ci-tests magic migration
-        env:
-          TF_ACC: 1
-          NO_GRIT: true
-        continue-on-error: true
-
-      ######## Everything Else ########
-      - name: Run Default Acceptance Tests
-        id: default_acceptance_tests
-        run: ./scripts/run-ci-tests default acceptance
-        env:
-          TF_ACC: 1
-          NO_GRIT: true
-        continue-on-error: true
-
-      - name: Run Default Migration Tests
-        id: default_migration_tests
-        run: ./scripts/run-ci-tests default migration
+      - name: Run Migration Tests
+        id: migration_tests
+        run: ./scripts/run-ci-tests migration
         env:
          TF_ACC: 1
-         NO_GRIT: true
         continue-on-error: true
-
       - name: Check Test Status
-        if: ${{
-          steps.magic_acceptance_tests.outcome == 'failure' ||
-          steps.magic_migration_tests.outcome == 'failure' ||
-          steps.default_acceptance_tests.outcome == 'failure' ||
-          steps.default_migration_tests.outcome == 'failure'}}
+        if: ${{ steps.acceptance_tests.outcome == 'failure' || steps.migration_tests.outcome == 'failure' }}
         run: exit 1
