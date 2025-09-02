@@ -1,12 +1,15 @@
 package zero_trust_access_mtls_certificate_test
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
 	"testing"
 
 	cf "github.com/cloudflare/cloudflare-go"
+	"github.com/cloudflare/cloudflare-go/v6"
+	"github.com/cloudflare/cloudflare-go/v6/zero_trust"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/knownvalue"
 	"github.com/hashicorp/terraform-plugin-testing/statecheck"
@@ -30,12 +33,46 @@ func testAccessMutualTLSCertificateMigrationZoneScoped(rnd string, zoneID string
 	return acctest.LoadTestCase("accessmutualtlscertificate_migration_zone_scoped.tf", rnd, zoneID, processedCert)
 }
 
+// waitBetweenTests adds a delay to prevent API conflicts between tests
+func waitBetweenTests(t *testing.T, isZone bool) {
+	t.Helper()
+	c := cloudflare.NewClient()
+	retry := 0
+	listParams := zero_trust.AccessCertificateListParams{}
+	if isZone {
+		listParams.ZoneID = cloudflare.F(os.Getenv("CLOUDFLARE_ZONE_ID"))
+	} else {
+		listParams.AccountID = cloudflare.F(os.Getenv("CLOUDFLARE_ACCOUNT_ID"))
+	}
+	for retry < 5 {
+		res, err := c.ZeroTrust.Access.Certificates.List(context.Background(), listParams)
+		if err != nil {
+			retry++
+			continue
+		}
+		if len(res.Result) == 0 {
+			return
+		}
+		time.Sleep(3 * time.Second)
+		retry++
+		if os.Getenv("TF_LOG") == "DEBUG" {
+			t.Logf("Waiting for list to return empty results to prevent API conflicts. Retry number: %d", retry)
+		}
+	}
+
+}
+
+func testAccessMutualTLSCertificateMigrationZoneScoped(rnd string, zoneID string, cert string) string {
+	processedCert := fmt.Sprintf("<<EOT\n%s\nEOT", strings.ReplaceAll(cert, "\\n", "\n"))
+	return acctest.LoadTestCase("accessmutualtlscertificate_migration_zone_scoped.tf", rnd, zoneID, processedCert)
+}
+
 
 // TestMigrateZeroTrustAccessMTLSCertificate_Basic tests basic migration from v4 to v5
 // The test starts with v4 resource name (cloudflare_access_mutual_tls_certificate) and
 // the migration tool renames it to v5 (cloudflare_zero_trust_access_mtls_certificate)
 func TestMigrateZeroTrustAccessMTLSCertificate_Basic(t *testing.T) {
-	waitForCertificateCleanup(t, false)
+	waitBetweenTests(t, false)
 	// Temporarily unset CLOUDFLARE_API_TOKEN if it is set as the Access
 	// service does not yet support the API tokens and it results in
 	// misleading state error messages.
@@ -49,16 +86,11 @@ func TestMigrateZeroTrustAccessMTLSCertificate_Basic(t *testing.T) {
 	resourceName := "cloudflare_zero_trust_access_mtls_certificate." + rnd
 	tmpDir := t.TempDir()
 
-	testCert, err := generateUniqueTestCertificate(fmt.Sprintf("basic-%s", rnd))
-	if err != nil {
-		t.Fatalf("Failed to generate test certificate: %v", err)
-	}
-
 	identifier := &cf.ResourceContainer{
 		Type:       "account",
 		Identifier: accountID,
 	}
-	v4Config := testAccessMutualTLSCertificateMigrationBasic(rnd, identifier, testCert, domain)
+	v4Config := testAccessMutualTLSCertificateMigrationBasic(rnd, identifier, testCertificate, domain)
 
 	resource.Test(t, resource.TestCase{
 		PreCheck: func() {
@@ -94,7 +126,7 @@ func TestMigrateZeroTrustAccessMTLSCertificate_Basic(t *testing.T) {
 
 // TestMigrateZeroTrustAccessMTLSCertificate_ZoneScoped tests zone-scoped resource migration
 func TestMigrateZeroTrustAccessMTLSCertificate_ZoneScoped(t *testing.T) {
-	waitForCertificateCleanup(t, true)
+	waitBetweenTests(t, false)
 	if os.Getenv("CLOUDFLARE_API_TOKEN") != "" {
 		t.Setenv("CLOUDFLARE_API_TOKEN", "")
 	}
@@ -104,12 +136,7 @@ func TestMigrateZeroTrustAccessMTLSCertificate_ZoneScoped(t *testing.T) {
 	resourceName := "cloudflare_zero_trust_access_mtls_certificate." + rnd
 	tmpDir := t.TempDir()
 
-	testCert, err := generateUniqueTestCertificate(fmt.Sprintf("zone-%s", rnd))
-	if err != nil {
-		t.Fatalf("Failed to generate test certificate: %v", err)
-	}
-
-	v4Config := testAccessMutualTLSCertificateMigrationZoneScoped(rnd, zoneID, testCert)
+	v4Config := testAccessMutualTLSCertificateMigrationZoneScoped(rnd, zoneID, testCertificate)
 
 	resource.Test(t, resource.TestCase{
 		PreCheck: func() {
