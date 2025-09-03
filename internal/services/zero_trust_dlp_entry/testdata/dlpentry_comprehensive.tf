@@ -7,5 +7,6 @@ resource "cloudflare_zero_trust_dlp_entry" "%[1]s" {
   
   pattern = {
     regex      = "[0-9]{3}-[0-9]{2}-[0-9]{4}"
+    validation = "ssn"
   }
 }
