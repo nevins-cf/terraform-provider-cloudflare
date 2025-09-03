@@ -41,12 +41,10 @@ func transformZeroTrustAccessIdentityProviderBlock(block *hclwrite.Block, diags 
 	providerType := getProviderType(block)
 	// Debug: temporary logging to see what provider type is being detected
 	// fmt.Printf("DEBUG: transformZeroTrustAccessIdentityProviderBlock called with provider type: '%s'\n", providerType)
-
+	
 	// Apply config-specific transformations
 	transforms := map[string]ast.ExprTransformer{
-		"config": func(expr *hclsyntax.Expression, diags ast.Diagnostics) {
-			transformConfigObject(expr, diags, providerType)
-		},
+		"config":      func(expr *hclsyntax.Expression, diags ast.Diagnostics) { transformConfigObject(expr, diags, providerType) },
 		"scim_config": transformScimConfigObject,
 	}
 	ast.ApplyTransformToAttributes(ast.Block{Block: block}, transforms, diags)
@@ -82,7 +80,7 @@ func getProviderType(block *hclwrite.Block) string {
 	if block == nil || block.Body() == nil {
 		return ""
 	}
-
+	
 	if typeAttr := block.Body().GetAttribute("type"); typeAttr != nil && typeAttr.Expr() != nil {
 		tokens := typeAttr.Expr().BuildTokens(nil)
 		if len(tokens) >= 3 {
@@ -118,32 +116,25 @@ func transformConfigObject(expr *hclsyntax.Expression, diags ast.Diagnostics, pr
 		return
 	}
 
-	objWrapper := ast.NewObject(obj, diags)
-
-	// Apply positive transforms first (idp_public_cert transformation)
+	// Apply config-specific transforms including type-based validation
 	configTransforms := map[string]ast.ExprTransformer{
 		"idp_public_cert": transformIdpPublicCertToList,
 	}
-	ast.ApplyTransformToAttributes(objWrapper, configTransforms, diags)
-
-	// Remove deprecated fields directly to avoid nil expression issues
-	deprecatedFields := []string{"api_token"}
-
-	// Add type-specific validation rules for fields to remove
+	
+	// Add type-specific validation rules
 	// sign_request is only valid for type saml
 	if providerType != "saml" {
-		deprecatedFields = append(deprecatedFields, "sign_request")
+		configTransforms["sign_request"] = removeDeprecatedField
 	}
-
+	
 	// conditional_access_enabled, directory_id, support_groups are only valid for azureAD
 	if providerType != "azureAD" {
-		deprecatedFields = append(deprecatedFields, "conditional_access_enabled", "directory_id", "support_groups")
+		configTransforms["conditional_access_enabled"] = removeDeprecatedField
+		configTransforms["directory_id"] = removeDeprecatedField
+		configTransforms["support_groups"] = removeDeprecatedField
 	}
-
-	// Remove deprecated fields directly
-	for _, field := range deprecatedFields {
-		objWrapper.RemoveAttribute(field, diags)
-	}
+	
+	ast.ApplyTransformToAttributes(ast.NewObject(obj, diags), configTransforms, diags)
 
 	// Handle field rename: idp_public_cert -> idp_public_certs
 	// This needs to be done after transformation since we're changing the key name
