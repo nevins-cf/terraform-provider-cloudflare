@@ -121,22 +121,12 @@ func TestMigrateCloudflareSnippetMultipleFiles(t *testing.T) {
 				},
 				Config: fmt.Sprintf(testAccCloudflareSnippetMigrationConfigMultipleFiles, rnd, zoneID),
 			},
-			{
-				PreConfig: func() {
-					// Write out config
-					acctest.WriteOutConfig(t, fmt.Sprintf(testAccCloudflareSnippetMigrationConfigMultipleFiles, rnd, zoneID), tmpDir)
-
-					// Run migration
-					acctest.RunMigrationCommand(t, fmt.Sprintf(testAccCloudflareSnippetMigrationConfigMultipleFiles, rnd, zoneID), tmpDir)
-				},
-				ProtoV6ProviderFactories: acctest.TestAccProtoV6ProviderFactories,
-				ConfigDirectory:          config.StaticDirectory(tmpDir),
-				ConfigPlanChecks: resource.ConfigPlanChecks{
-					PreApply: []plancheck.PlanCheck{
-						acctest.DebugNonEmptyPlan,
-					},
-				},
-				ConfigStateChecks: []statecheck.StateCheck{
+			// Step 2: Run migration and verify state
+			acctest.MigrationTestStep(t,
+				fmt.Sprintf(testAccCloudflareSnippetMigrationConfigMultipleFiles, rnd, zoneID),
+				tmpDir,
+				"4.52.1",
+				[]statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("zone_id"), knownvalue.StringExact(zoneID)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("snippet_name"), knownvalue.StringExact(rnd)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("metadata").AtMapKey("main_module"), knownvalue.StringExact("main.js")),
@@ -155,8 +145,7 @@ func TestMigrateCloudflareSnippetMultipleFiles(t *testing.T) {
 						"name":    knownvalue.StringExact("utils.js"),
 						"content": knownvalue.StringExact("export const VERSION = '1.0.0';"),
 					})),
-				},
-			},
+				}),
 		},
 	})
 }
@@ -186,22 +175,12 @@ func TestMigrateCloudflareSnippetComplexContent(t *testing.T) {
 				},
 				Config: fmt.Sprintf(testAccCloudflareSnippetMigrationConfigComplexContent, rnd, zoneID),
 			},
-			{
-				PreConfig: func() {
-					// Write out config
-					acctest.WriteOutConfig(t, fmt.Sprintf(testAccCloudflareSnippetMigrationConfigComplexContent, rnd, zoneID), tmpDir)
-
-					// Run migration
-					acctest.RunMigrationCommand(t, fmt.Sprintf(testAccCloudflareSnippetMigrationConfigComplexContent, rnd, zoneID), tmpDir)
-				},
-				ProtoV6ProviderFactories: acctest.TestAccProtoV6ProviderFactories,
-				ConfigDirectory:          config.StaticDirectory(tmpDir),
-				ConfigPlanChecks: resource.ConfigPlanChecks{
-					PreApply: []plancheck.PlanCheck{
-						acctest.DebugNonEmptyPlan,
-					},
-				},
-				ConfigStateChecks: []statecheck.StateCheck{
+			// Step 2: Run migration and verify state
+			acctest.MigrationTestStep(t,
+				fmt.Sprintf(testAccCloudflareSnippetMigrationConfigComplexContent, rnd, zoneID),
+				tmpDir,
+				"4.52.1",
+				[]statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("zone_id"), knownvalue.StringExact(zoneID)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("snippet_name"), knownvalue.StringExact(rnd)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("metadata").AtMapKey("main_module"), knownvalue.StringExact("worker.js")),
@@ -212,8 +191,7 @@ func TestMigrateCloudflareSnippetComplexContent(t *testing.T) {
 						// Check that content contains expected patterns
 						"content": knownvalue.StringRegexp(regexp.MustCompile("Complex worker with multiple features")),
 					})),
-				},
-			},
+				}),
 		},
 	})
 }
@@ -243,25 +221,23 @@ func TestMigrateCloudflareSnippetWithImport(t *testing.T) {
 				},
 				Config: fmt.Sprintf(testAccCloudflareSnippetMigrationConfigBasic, rnd, zoneID),
 			},
-			{
-				PreConfig: func() {
-					// Write out config
-					acctest.WriteOutConfig(t, fmt.Sprintf(testAccCloudflareSnippetMigrationConfigBasic, rnd, zoneID), tmpDir)
-
-					// Run migration
-					acctest.RunMigrationCommand(t, fmt.Sprintf(testAccCloudflareSnippetMigrationConfigBasic, rnd, zoneID), tmpDir)
-				},
-				ProtoV6ProviderFactories: acctest.TestAccProtoV6ProviderFactories,
-				ConfigDirectory:          config.StaticDirectory(tmpDir),
-				ConfigPlanChecks: resource.ConfigPlanChecks{
-					PreApply: []plancheck.PlanCheck{
-						acctest.DebugNonEmptyPlan,
-					},
-				},
-				ConfigStateChecks: []statecheck.StateCheck{
+			// Step 2: Run migration and verify state
+			acctest.MigrationTestStep(t,
+				fmt.Sprintf(testAccCloudflareSnippetMigrationConfigBasic, rnd, zoneID),
+				tmpDir,
+				"4.52.1",
+				[]statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("zone_id"), knownvalue.StringExact(zoneID)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("snippet_name"), knownvalue.StringExact(rnd)),
-				},
+				}),
+			// Step 3: Test import after migration
+			{
+				ProtoV6ProviderFactories: acctest.TestAccProtoV6ProviderFactories,
+				Config:                   fmt.Sprintf(testAccCloudflareSnippetMigrationConfigBasic, rnd, zoneID),
+				ResourceName:             resourceName,
+				ImportState:              true,
+				ImportStateVerify:        true,
+				ImportStateId:            fmt.Sprintf("%s/%s", zoneID, rnd),
 			},
 		},
 	})
@@ -292,22 +268,12 @@ func TestMigrateCloudflareSnippetURLRewrite(t *testing.T) {
 				},
 				Config: fmt.Sprintf(testAccCloudflareSnippetMigrationConfigURLRewrite, rnd, zoneID),
 			},
-			{
-				PreConfig: func() {
-					// Write out config
-					acctest.WriteOutConfig(t, fmt.Sprintf(testAccCloudflareSnippetMigrationConfigURLRewrite, rnd, zoneID), tmpDir)
-
-					// Run migration
-					acctest.RunMigrationCommand(t, fmt.Sprintf(testAccCloudflareSnippetMigrationConfigURLRewrite, rnd, zoneID), tmpDir)
-				},
-				ProtoV6ProviderFactories: acctest.TestAccProtoV6ProviderFactories,
-				ConfigDirectory:          config.StaticDirectory(tmpDir),
-				ConfigPlanChecks: resource.ConfigPlanChecks{
-					PreApply: []plancheck.PlanCheck{
-						acctest.DebugNonEmptyPlan,
-					},
-				},
-				ConfigStateChecks: []statecheck.StateCheck{
+			// Step 2: Run migration and verify state
+			acctest.MigrationTestStep(t,
+				fmt.Sprintf(testAccCloudflareSnippetMigrationConfigURLRewrite, rnd, zoneID),
+				tmpDir,
+				"4.52.1",
+				[]statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("zone_id"), knownvalue.StringExact(zoneID)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("snippet_name"), knownvalue.StringExact(rnd)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("metadata").AtMapKey("main_module"), knownvalue.StringExact("rewrite.js")),
@@ -315,10 +281,9 @@ func TestMigrateCloudflareSnippetURLRewrite(t *testing.T) {
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("files").AtSliceIndex(0), knownvalue.ObjectPartial(map[string]knownvalue.Check{
 						"name": knownvalue.StringExact("rewrite.js"),
 						// Verify URL rewrite logic is preserved
-						"content": knownvalue.StringRegexp(regexp.MustCompile(`pathname\.match\(/\^\\/old`)),
+						"content": knownvalue.StringRegexp(regexp.MustCompile("pathname\\.match\\(/\\^/old/")),
 					})),
-				},
-			},
+				}),
 		},
 	})
 }
@@ -349,22 +314,11 @@ func TestMigrateCloudflareSnippetHeaderManipulation(t *testing.T) {
 				Config: fmt.Sprintf(testAccCloudflareSnippetMigrationConfigHeaderManipulation, rnd, zoneID),
 			},
 			// Step 2: Run migration and verify state
-			{
-				PreConfig: func() {
-					// Write out config
-					acctest.WriteOutConfig(t, fmt.Sprintf(testAccCloudflareSnippetMigrationConfigHeaderManipulation, rnd, zoneID), tmpDir)
-
-					// Run migration
-					acctest.RunMigrationCommand(t, fmt.Sprintf(testAccCloudflareSnippetMigrationConfigHeaderManipulation, rnd, zoneID), tmpDir)
-				},
-				ProtoV6ProviderFactories: acctest.TestAccProtoV6ProviderFactories,
-				ConfigDirectory:          config.StaticDirectory(tmpDir),
-				ConfigPlanChecks: resource.ConfigPlanChecks{
-					PreApply: []plancheck.PlanCheck{
-						acctest.DebugNonEmptyPlan,
-					},
-				},
-				ConfigStateChecks: []statecheck.StateCheck{
+			acctest.MigrationTestStep(t,
+				fmt.Sprintf(testAccCloudflareSnippetMigrationConfigHeaderManipulation, rnd, zoneID),
+				tmpDir,
+				"4.52.1",
+				[]statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("zone_id"), knownvalue.StringExact(zoneID)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("snippet_name"), knownvalue.StringExact(rnd)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("metadata").AtMapKey("main_module"), knownvalue.StringExact("headers.js")),
@@ -374,8 +328,7 @@ func TestMigrateCloudflareSnippetHeaderManipulation(t *testing.T) {
 						// Check header operations are preserved
 						"content": knownvalue.StringRegexp(regexp.MustCompile("headers\\.set\\(\"X-Custom-Header\"")),
 					})),
-				},
-			},
+				}),
 		},
 	})
 }
@@ -405,22 +358,12 @@ func TestMigrateCloudflareSnippetEdgeCases(t *testing.T) {
 				},
 				Config: fmt.Sprintf(testAccCloudflareSnippetMigrationConfigEdgeCases, rnd, zoneID),
 			},
-			{
-				PreConfig: func() {
-					// Write out config
-					acctest.WriteOutConfig(t, fmt.Sprintf(testAccCloudflareSnippetMigrationConfigEdgeCases, rnd, zoneID), tmpDir)
-
-					// Run migration
-					acctest.RunMigrationCommand(t, fmt.Sprintf(testAccCloudflareSnippetMigrationConfigEdgeCases, rnd, zoneID), tmpDir)
-				},
-				ProtoV6ProviderFactories: acctest.TestAccProtoV6ProviderFactories,
-				ConfigDirectory:          config.StaticDirectory(tmpDir),
-				ConfigPlanChecks: resource.ConfigPlanChecks{
-					PreApply: []plancheck.PlanCheck{
-						acctest.DebugNonEmptyPlan,
-					},
-				},
-				ConfigStateChecks: []statecheck.StateCheck{
+			// Step 2: Run migration and verify state
+			acctest.MigrationTestStep(t,
+				fmt.Sprintf(testAccCloudflareSnippetMigrationConfigEdgeCases, rnd, zoneID),
+				tmpDir,
+				"4.52.1",
+				[]statecheck.StateCheck{
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("zone_id"), knownvalue.StringExact(zoneID)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("snippet_name"), knownvalue.StringExact(rnd)),
 					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("metadata").AtMapKey("main_module"), knownvalue.StringExact("edge.js")),
@@ -430,8 +373,8 @@ func TestMigrateCloudflareSnippetEdgeCases(t *testing.T) {
 						// Check special characters are preserved
 						"content": knownvalue.StringRegexp(regexp.MustCompile("emoji 🚀")),
 					})),
-				},
-			},
+				}),
 		},
 	})
 }
+

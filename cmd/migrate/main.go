@@ -338,38 +338,6 @@ func transformFile(content []byte, filename string) ([]byte, error) {
 		if isSnippetResource(block) {
 			transformSnippetBlock(block, diags)
 		}
-
-		if isSnippetRulesResource(block) {
-			transformSnippetRulesBlock(block, diags)
-		}
-
-		if isSpectrumApplicationResource(block) {
-			transformSpectrumApplicationBlock(block, diags)
-		}
-
-		if isWorkersRouteResource(block) {
-			transformWorkersRouteBlock(block, diags)
-		}
-
-		if isWorkersScriptResource(block) {
-			transformWorkersScriptBlock(block, diags)
-		}
-
-		if isWorkersCronTriggerResource(block) {
-			transformWorkersCronTriggerBlock(block, diags)
-		}
-
-		if isWorkersDomainResource(block) {
-			transformWorkersDomainBlock(block, diags)
-		}
-
-		// Note: workers_secret resources are handled by cross-resource migration below
-
-		if isCloudflareListResource(block) {
-			// Transform cloudflare_list item blocks to items attribute
-			// Handles both static and dynamic blocks
-			transformCloudflareListBlock(block)
-		}
 	}
 
 	// Merge cloudflare_list_item resources into their parent lists
