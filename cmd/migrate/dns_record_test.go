@@ -416,8 +416,6 @@ func TestDNSRecordStateTransformation(t *testing.T) {
 							"name": "test.example.com",
 							"type": "CAA",
 							"ttl": 1,
-							"created_on": "2024-01-01T00:00:00Z",
-							"modified_on": "2024-01-01T00:00:00Z",
 							"data": {
 								"flags": {
 									"value": 0,
@@ -555,10 +553,7 @@ func TestDNSRecordStateTransformation(t *testing.T) {
 							"zone_id": "0da42c8d2132a9ddaf714f9e7c920711",
 							"name": "_sip._tcp.example.com",
 							"type": "SRV",
-							"priority": 10,
 							"ttl": 1,
-							"created_on": "2024-01-01T00:00:00Z",
-							"modified_on": "2024-01-01T00:00:00Z",
 							"data": {
 								"priority": 10,
 								"weight": 60,
