@@ -169,11 +169,8 @@ func transformStateJSON(data []byte) ([]byte, error) {
 			case "cloudflare_zero_trust_access_group", "cloudflare_access_group":
 				result = transformZeroTrustAccessGroupStateJSON(result, path)
 
-			case "cloudflare_snippet":
-				result = transformSnippetStateJSON(result, path)
-			
-			case "cloudflare_snippet_rules":
-				result = transformSnippetRulesStateJSON(result, path)
+			case "cloudflare_custom_pages":
+				result = transformCustomPagesStateJSON(result, path)
 			}
 
 			return true
@@ -2163,6 +2160,20 @@ func transformZeroTrustAccessGroupStateJSON(json, path string) string {
 				return true
 			})
 		}
+	}
+
+	return json
+}
+
+// transformCustomPagesStateJSON handles v4 to v5 state migration for cloudflare_custom_pages
+func transformCustomPagesStateJSON(json string, instancePath string) string {
+	attrPath := instancePath + ".attributes"
+
+	// Transform type -> identifier attribute rename
+	typeValue := gjson.Get(json, attrPath+".type")
+	if typeValue.Exists() {
+		json, _ = sjson.Set(json, attrPath+".identifier", typeValue.Value())
+		json, _ = sjson.Delete(json, attrPath+".type")
 	}
 
 	return json
