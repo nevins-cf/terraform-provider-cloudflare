@@ -148,6 +148,38 @@ func TestAccCloudflareWorkersKV_WithMetadata(t *testing.T) {
 	})
 }
 
+func TestAccCloudflareWorkersKV_WithMetadata(t *testing.T) {
+	t.Parallel()
+	name := utils.GenerateRandomResourceName()
+	key := utils.GenerateRandomResourceName()
+	value := utils.GenerateRandomResourceName()
+	accountID := os.Getenv("CLOUDFLARE_ACCOUNT_ID")
+	resourceName := "cloudflare_workers_kv." + name
+	metadataKey := utils.GenerateRandomResourceName()
+	metadataValue := utils.GenerateRandomResourceName()
+	metadata := fmt.Sprintf("{\\\"%s\\\": \\\"%s\\\"}", metadataKey, metadataValue)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck: func() {
+			acctest.TestAccPreCheck(t)
+			acctest.TestAccPreCheck_AccountID(t)
+		},
+		ProtoV6ProviderFactories: acctest.TestAccProtoV6ProviderFactories,
+		CheckDestroy:             testAccCloudflareWorkersKVDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccCheckCloudflareWorkersKVWithMetadata(name, key, value, accountID, metadata),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckCloudflareWorkersKVMetadataExists(key),
+					resource.TestCheckResourceAttr(resourceName, "value", value),
+					resource.TestCheckResourceAttr(resourceName, consts.AccountIDSchemaKey, accountID),
+					resource.TestCheckResourceAttr(resourceName, "metadata", strings.ReplaceAll(metadata, "\\\"", "\"")),
+				),
+			},
+		},
+	})
+}
+
 func testAccCloudflareWorkersKVDestroy(s *terraform.State) error {
 	client := acctest.SharedClient()
 
@@ -173,6 +205,10 @@ func testAccCloudflareWorkersKVDestroy(s *terraform.State) error {
 
 func testAccCheckCloudflareWorkersKV(rName, key, value, accountID string) string {
 	return acctest.LoadTestCase("workerskv.tf", rName, key, value, accountID)
+}
+
+func testAccCheckCloudflareWorkersKVWithAccount(rName, key, value, accountID string) string {
+	return acctest.LoadTestCase("workerskvwithaccount.tf", rName, key, value, accountID)
 }
 
 func testAccCheckCloudflareWorkersKVWithMetadata(rName, key, value, accountID, metadata string) string {
