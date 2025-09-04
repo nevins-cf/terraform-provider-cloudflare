@@ -186,10 +186,8 @@ func (r *ListResource) Update(ctx context.Context, req resource.UpdateRequest, r
 
 func (r *ListResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	var data *ListModel
-	var prev *ListModel
 
 	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
-	resp.Diagnostics.Append(req.State.Get(ctx, &prev)...)
 
 	if resp.Diagnostics.HasError() {
 		return
@@ -225,7 +223,7 @@ func (r *ListResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 	}
 	data = &env.Result
 
-	if !prev.Items.IsNull() {
+	if !prevItemsNull {
 
 		itemsSet, diags := getAllListItems[ListItemModel](ctx, r.client, data.AccountID.ValueString(), data.ID.ValueString(), "")
 		resp.Diagnostics.Append(diags...)
