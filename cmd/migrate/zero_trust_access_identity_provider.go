@@ -41,10 +41,12 @@ func transformZeroTrustAccessIdentityProviderBlock(block *hclwrite.Block, diags 
 	providerType := getProviderType(block)
 	// Debug: temporary logging to see what provider type is being detected
 	// fmt.Printf("DEBUG: transformZeroTrustAccessIdentityProviderBlock called with provider type: '%s'\n", providerType)
-	
+
 	// Apply config-specific transformations
 	transforms := map[string]ast.ExprTransformer{
-		"config":      func(expr *hclsyntax.Expression, diags ast.Diagnostics) { transformConfigObject(expr, diags, providerType) },
+		"config": func(expr *hclsyntax.Expression, diags ast.Diagnostics) {
+			transformConfigObject(expr, diags, providerType)
+		},
 		"scim_config": transformScimConfigObject,
 	}
 	ast.ApplyTransformToAttributes(ast.Block{Block: block}, transforms, diags)
@@ -80,7 +82,7 @@ func getProviderType(block *hclwrite.Block) string {
 	if block == nil || block.Body() == nil {
 		return ""
 	}
-	
+
 	if typeAttr := block.Body().GetAttribute("type"); typeAttr != nil && typeAttr.Expr() != nil {
 		tokens := typeAttr.Expr().BuildTokens(nil)
 		if len(tokens) >= 3 {
@@ -117,27 +119,27 @@ func transformConfigObject(expr *hclsyntax.Expression, diags ast.Diagnostics, pr
 	}
 
 	objWrapper := ast.NewObject(obj, diags)
-	
+
 	// Apply positive transforms first (idp_public_cert transformation)
 	configTransforms := map[string]ast.ExprTransformer{
 		"idp_public_cert": transformIdpPublicCertToList,
 	}
 	ast.ApplyTransformToAttributes(objWrapper, configTransforms, diags)
-	
+
 	// Remove deprecated fields directly to avoid nil expression issues
 	deprecatedFields := []string{"api_token"}
-	
+
 	// Add type-specific validation rules for fields to remove
 	// sign_request is only valid for type saml
 	if providerType != "saml" {
 		deprecatedFields = append(deprecatedFields, "sign_request")
 	}
-	
+
 	// conditional_access_enabled, directory_id, support_groups are only valid for azureAD
 	if providerType != "azureAD" {
 		deprecatedFields = append(deprecatedFields, "conditional_access_enabled", "directory_id", "support_groups")
 	}
-	
+
 	// Remove deprecated fields directly
 	for _, field := range deprecatedFields {
 		objWrapper.RemoveAttribute(field, diags)
@@ -179,7 +181,6 @@ func transformIdpPublicCertToList(expr *hclsyntax.Expression, diags ast.Diagnost
 		Exprs: []hclsyntax.Expression{*expr},
 	}
 }
-
 
 // convertConfigBlocksToObjects converts config and scim_config blocks to objects
 // This handles the v4 -> v5 block-to-object conversion
