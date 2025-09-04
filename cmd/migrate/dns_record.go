@@ -37,12 +37,6 @@ func ProcessDNSRecordConfig(file *hclwrite.File) error {
 			continue
 		}
 
-		// Rename cloudflare_record to cloudflare_dns_record
-		if resourceType == "cloudflare_record" {
-			labels[0] = "cloudflare_dns_record"
-			block.SetLabels(labels)
-		}
-
 		// Ensure TTL is present for v5 (required field)
 		ttlAttr := block.Body().GetAttribute("ttl")
 		if ttlAttr == nil {
@@ -55,7 +49,7 @@ func ProcessDNSRecordConfig(file *hclwrite.File) error {
 			block.Body().SetAttributeRaw("ttl", hclwrite.Tokens{ttlToken})
 		}
 
-		// Get the record type first
+		// Check if this is a CAA record
 		typeAttr := block.Body().GetAttribute("type")
 		if typeAttr == nil {
 			continue
