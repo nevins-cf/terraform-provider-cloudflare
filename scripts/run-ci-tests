@@ -28,46 +28,43 @@ get_available_product_groups() {
 }
 
 # List of services with their parallel test configuration
-# Each service is defined as: resource=<path> [parallel=<number>] [depends_on=<service1,service2>]
-# parallel=1 means sequential execution, parallel=0 (default) means use default (GOMAXPROCS)
-# Only specify parallel= if different from default (0)
+# Each service is defined as: resource=<path> parallel=<number> [depends_on=<service1,service2>]
+# parallel=1 means sequential execution, parallel=0 means use default (GOMAXPROCS)
 # depends_on is optional and specifies services that must complete before this one starts
 # Dependencies use service names (basename of path), comma-separated for multiple dependencies
-declare -a ALL_SERVICES=(
-    "resource=./internal/services/account"
-    "resource=./internal/services/account_api_token_permission_groups"
-    "resource=./internal/services/account_dns_settings"
-    "resource=./internal/services/account_dns_settings_internal_view"
-    "resource=./internal/services/account_member"
-    "resource=./internal/services/account_permission_group"
-    "resource=./internal/services/account_role"
-    "resource=./internal/services/account_subscription"
-    "resource=./internal/services/account_token"
-    "resource=./internal/services/address_map"
-    "resource=./internal/services/api_shield"
-    "resource=./internal/services/api_token"
-    "resource=./internal/services/argo_smart_routing"
-    "resource=./internal/services/argo_tiered_caching"
-    "resource=./internal/services/authenticated_origin_pulls"
-    "resource=./internal/services/authenticated_origin_pulls_certificate"
-    "resource=./internal/services/bot_management"
-    "resource=./internal/services/byo_ip_prefix"
-    "resource=./internal/services/certificate_pack"
-    "resource=./internal/services/cloud_connector_rules"
-    "resource=./internal/services/custom_pages"
-    "resource=./internal/services/custom_ssl"
-    "resource=./internal/services/dns_record"
-    "resource=./internal/services/dns_settings_internal_view"
-    "resource=./internal/services/dns_zone_transfers_acl"
-    "resource=./internal/services/dns_zone_transfers_tsig"
-    "resource=./internal/services/email_routing_catch_all"
-    "resource=./internal/services/email_routing_dns"
-    "resource=./internal/services/email_routing_rule"
-    "resource=./internal/services/email_security_impersonation_registry"
-    "resource=./internal/services/email_security_trusted_domains"
-    "resource=./internal/services/healthcheck"
-    "resource=./internal/services/ip_ranges"
-    "resource=./internal/services/list parallel=1"
+declare -a SERVICES=(
+    "resource=./internal/services/account parallel=0"
+    "resource=./internal/services/account_api_token_permission_groups parallel=0"
+    "resource=./internal/services/account_dns_settings parallel=0"
+    "resource=./internal/services/account_dns_settings_internal_view parallel=0"
+    "resource=./internal/services/account_member parallel=0"
+    "resource=./internal/services/account_permission_group parallel=0"
+    "resource=./internal/services/account_role parallel=0"
+    "resource=./internal/services/account_subscription parallel=0"
+    "resource=./internal/services/account_token parallel=0"
+    "resource=./internal/services/address_map parallel=0"
+    "resource=./internal/services/api_shield parallel=0"
+    "resource=./internal/services/api_token parallel=0"
+    "resource=./internal/services/argo_smart_routing parallel=0"
+    "resource=./internal/services/argo_tiered_caching parallel=0"
+    "resource=./internal/services/authenticated_origin_pulls parallel=0"
+    "resource=./internal/services/authenticated_origin_pulls_certificate parallel=0"
+    "resource=./internal/services/byo_ip_prefix parallel=0"
+    "resource=./internal/services/certificate_pack parallel=0"
+    "resource=./internal/services/cloud_connector_rules parallel=0"
+    "resource=./internal/services/custom_pages parallel=0"
+    "resource=./internal/services/custom_ssl parallel=0"
+    "resource=./internal/services/dns_record parallel=0"
+    "resource=./internal/services/dns_settings_internal_view parallel=0"
+    "resource=./internal/services/dns_zone_transfers_acl parallel=0"
+    "resource=./internal/services/dns_zone_transfers_tsig parallel=0"
+    "resource=./internal/services/email_routing_catch_all parallel=0"
+    "resource=./internal/services/email_routing_dns parallel=0"
+    "resource=./internal/services/email_routing_rule parallel=0"
+    "resource=./internal/services/email_security_impersonation_registry parallel=0"
+    "resource=./internal/services/email_security_trusted_domains parallel=0"
+    "resource=./internal/services/ip_ranges parallel=0"
+    "resource=./internal/services/list parallel=0"
     "resource=./internal/services/list_item parallel=1"
     "resource=./internal/services/load_balancer"
     "resource=./internal/services/load_balancer_monitor"
@@ -106,10 +103,10 @@ declare -a ALL_SERVICES=(
     "resource=./internal/services/zero_trust_access_identity_provider parallel=0"
     "resource=./internal/services/zero_trust_access_key_configuration parallel=0"
     "resource=./internal/services/zero_trust_access_mtls_certificate parallel=0"
-    "resource=./internal/services/zero_trust_access_mtls_hostname_settings parallel=0"
+    "resource=./internal/services/zero_trust_access_mtls_hostname_settings parallel=0 depends_on=zero_trust_access_mtls_certificate"
     "resource=./internal/services/zero_trust_access_policy parallel=0"
     "resource=./internal/services/zero_trust_access_service_token parallel=0"
-    "resource=./internal/services/zero_trust_access_short_lived_certificate parallel=0"
+    "resource=./internal/services/zero_trust_access_short_lived_certificate parallel=0 depends_on=zero_trust_access_mtls_hostname_settings"
     "resource=./internal/services/zero_trust_access_tag parallel=0"
     "resource=./internal/services/zero_trust_device_custom_profile parallel=0"
     "resource=./internal/services/zero_trust_device_custom_profile_local_domain_fallback parallel=0"
@@ -200,6 +197,89 @@ filter_services_by_group() {
             fi
         done
     fi
+}
+
+# Function to check if service has dependencies satisfied
+check_dependencies_satisfied() {
+    local service_config="$1"
+    local completed_file="$2"
+    
+    local depends_on=$(parse_service_config "$service_config" "depends_on")
+    if [ -z "$depends_on" ] || [ "$depends_on" = "" ]; then
+        return 0  # No dependencies
+    fi
+    
+    # Split dependencies by comma and check each one
+    IFS=',' read -ra deps <<< "$depends_on"
+    for dep in "${deps[@]}"; do
+        dep=$(echo "$dep" | xargs)  # trim whitespace
+        if ! grep -q "^$dep$" "$completed_file" 2>/dev/null; then
+            return 1  # Dependency not satisfied
+        fi
+    done
+    
+    return 0  # All dependencies satisfied
+}
+
+# Simple dependency-aware ordering (processes services with no unsatisfied dependencies first)
+resolve_dependencies() {
+    # For bash compatibility, use simple approach:
+    # 1. First, output all services with no dependencies
+    # 2. Then output services whose dependencies have been satisfied
+    # This is less sophisticated than full topological sort but works for simple chains
+    
+    local completed_file="/tmp/dependency_completion_$$"
+    touch "$completed_file"
+    local remaining_services=("${SERVICES[@]}")
+    
+    local iteration=0
+    while [ ${#remaining_services[@]} -gt 0 ]; do
+        iteration=$((iteration + 1))
+        # Safety check to prevent infinite loops
+        if [ $iteration -gt 100 ]; then
+            log "${RED}ERROR: Dependency resolution exceeded maximum iterations${NC}" >&2
+            rm -f "$completed_file"
+            exit 1
+        fi
+        
+        local made_progress=false
+        local new_remaining=()
+        
+        for service_config in "${remaining_services[@]}"; do
+            if check_dependencies_satisfied "$service_config" "$completed_file"; then
+                echo "$service_config"
+                local service=$(parse_service_config "$service_config" "resource")
+                local service_name=$(get_service_name "$service")
+                echo "$service_name" >> "$completed_file"
+                made_progress=true
+            else
+                new_remaining+=("$service_config")
+            fi
+        done
+        
+        remaining_services=("${new_remaining[@]}")
+        
+        if [ "$made_progress" = "false" ] && [ ${#remaining_services[@]} -gt 0 ]; then
+            log "${RED}ERROR: Circular dependency or missing dependency detected${NC}" >&2
+            log "${RED}Remaining services with unresolved dependencies:${NC}" >&2
+            for service_config in "${remaining_services[@]}"; do
+                local service=$(parse_service_config "$service_config" "resource")
+                local service_name=$(get_service_name "$service")
+                local depends_on=$(parse_service_config "$service_config" "depends_on")
+                log "${RED}  - $service_name (depends on: $depends_on)${NC}" >&2
+            done
+            rm -f "$completed_file"
+            exit 1
+        fi
+    done
+    
+    rm -f "$completed_file"
+}
+
+# Function to get service name from path
+get_service_name() {
+    local service_path="$1"
+    basename "$service_path"
 }
 
 # Function to check if service has dependencies satisfied
@@ -1073,12 +1153,6 @@ if [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
     echo "Environment variables:"
     echo "  PARALLEL_JOBS      Override default parallel job count"
     echo ""
-    echo "Product Groups:"
-    for group in $(get_available_product_groups); do
-        echo "  $group: $(get_product_group_services "$group")"
-    done
-    echo "  default: all services not in any product group"
-    echo ""
     echo "Dependencies:"
     echo "  Services can specify dependencies using depends_on=service1,service2"
     echo "  Dependencies must complete successfully before dependent services start"
@@ -1086,13 +1160,13 @@ if [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
     echo "  Circular dependencies are detected and will cause the script to exit with an error"
     echo ""
     echo "Examples:"
-    echo "  $0                                    # Run default group acceptance tests"
-    echo "  $0 default acceptance                # Run default group acceptance tests"
-    echo "  $0 magic acceptance                  # Run magic group acceptance tests"
-    echo "  $0 migration                         # Run migration tests (all groups)"
-    echo "  $0 default acceptance --jobs 4       # Run default group with 4 parallel jobs"
-    echo "  $0 magic acceptance --debug          # Run magic group with debug logging"
-    echo "  PARALLEL_JOBS=8 $0 default acceptance # Run with 8 parallel jobs"
+    echo "  $0                                    # Run acceptance tests with default settings"
+    echo "  $0 migration                         # Run migration tests"
+    echo "  $0 acceptance --jobs 4               # Run acceptance tests with 4 parallel jobs"
+    echo "  $0 migration --test-timeout 20m      # Run migration tests with 20 minute timeout"
+    echo "  $0 acceptance --debug                # Run with debug logging enabled"
+    echo "  PARALLEL_JOBS=8 $0 acceptance        # Run with 8 parallel jobs"
+    echo "  DEBUG_LOGS=true $0 acceptance        # Run with debug logging via environment variable"
     exit 0
 fi
 
