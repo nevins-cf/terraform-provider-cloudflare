@@ -604,8 +604,10 @@ func TestCustomPagesStateTransformation(t *testing.T) {
 						"instances": [
 							{
 								"attributes": {
-									"account_id": "123456789abcdef0",
-									"zone": "example.com",
+									"account": {
+										"id": "123456789abcdef0"
+									},
+									"name": "example.com",
 									"id": "zone-id"
 								}
 							}
@@ -640,8 +642,10 @@ func TestCustomPagesStateTransformation(t *testing.T) {
 						"instances": [
 							{
 								"attributes": {
-									"account_id": "123456789abcdef0",
-									"zone": "example.com",
+									"account": {
+										"id": "123456789abcdef0"
+									},
+									"name": "example.com",
 									"id": "zone-id"
 								}
 							}

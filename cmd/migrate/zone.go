@@ -23,10 +23,10 @@ func isZoneResource(block *hclwrite.Block) bool {
 // 4. Remove plan (becomes computed-only nested object)
 func transformZoneBlock(block *hclwrite.Block, diags ast.Diagnostics) {
 	body := block.Body()
-
+	
 	// 1. Rename zone → name
 	body.RenameAttribute("zone", "name")
-
+	
 	// 2. Transform account_id to account manually
 	if accountIdAttr := body.GetAttribute("account_id"); accountIdAttr != nil {
 		// Transform account_id → account = { id = "..." }
@@ -34,11 +34,11 @@ func transformZoneBlock(block *hclwrite.Block, diags ast.Diagnostics) {
 			"account_id": transformAccountIdToNestedAccount,
 		}
 		ast.ApplyTransformToAttributes(ast.Block{Block: block}, transforms, diags)
-
+		
 		// Rename the attribute after transformation
 		body.RenameAttribute("account_id", "account")
 	}
-
+	
 	// 3-4. Remove obsolete attributes
 	transforms := map[string]ast.ExprTransformer{
 		"jump_start": removeAttribute,
@@ -58,7 +58,7 @@ func transformAccountIdToNestedAccount(expr *hclsyntax.Expression, diags ast.Dia
 	*expr = &hclsyntax.ObjectConsExpr{
 		Items: []hclsyntax.ObjectConsItem{
 			{
-				KeyExpr:   ast.NewKeyExpr("id"),
+				KeyExpr: ast.NewKeyExpr("id"),
 				ValueExpr: *expr, // Use the original expression as the id value
 			},
 		},
@@ -76,15 +76,7 @@ func transformZoneInstanceStateJSON(state string, path string) string {
 	basePath := path + ".attributes"
 	var err error
 	result := state
-
-	// Let's see what attributes are actually available in this instance
-	attrs := gjson.Get(state, basePath)
-	if attrs.Exists() {
-		attrs.ForEach(func(key, value gjson.Result) bool {
-			return true
-		})
-	}
-
+	
 	// 1. zone → name
 	if gjson.Get(state, basePath+".zone").Exists() {
 		zoneValue := gjson.Get(state, basePath+".zone")
@@ -93,7 +85,7 @@ func transformZoneInstanceStateJSON(state string, path string) string {
 			result, _ = sjson.Delete(result, basePath+".zone")
 		}
 	}
-
+	
 	// 2. account_id → account = { id = "..." }
 	if gjson.Get(state, basePath+".account_id").Exists() {
 		accountId := gjson.Get(state, basePath+".account_id")
@@ -104,20 +96,20 @@ func transformZoneInstanceStateJSON(state string, path string) string {
 			result, _ = sjson.Delete(result, basePath+".account_id")
 		}
 	}
-
+	
 	// 3. Remove jump_start
 	if gjson.Get(state, basePath+".jump_start").Exists() {
 		result, _ = sjson.Delete(result, basePath+".jump_start")
 	}
-
+	
 	// 4. Remove plan
 	if gjson.Get(state, basePath+".plan").Exists() {
 		result, _ = sjson.Delete(result, basePath+".plan")
 	}
-
+	
 	// 5. Transform meta from map[string]bool to structured object
 	// For now, let the API handle this since meta is computed
 	// Complex meta transformations would go here if needed
-
+	
 	return result
 }
