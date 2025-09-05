@@ -167,20 +167,12 @@ func buildObjectFromContentBlock(contentBlock *hclwrite.Block, kind string, iter
 	contentBody := contentBlock.Body()
 	items := []hclsyntax.ObjectConsItem{}
 	
-	// Process value block first (to get ip, asn, hostname, redirect before comment)
-	for _, vBlock := range contentBody.Blocks() {
-		if vBlock.Type() == "value" {
-			valueItems := extractValueBlockItems(vBlock, kind, iteratorName, diags)
-			items = append(items, valueItems...)
-		}
-	}
-	
-	// Then add comment attribute
+	// Check for comment attribute
 	if commentAttr := contentBody.GetAttribute("comment"); commentAttr != nil {
 		commentBytes := commentAttr.Expr().BuildTokens(nil).Bytes()
 		commentExpr, d := hclsyntax.ParseExpression(commentBytes, "comment", hcl.InitialPos)
 		if !d.HasErrors() {
-			// Handle iterator references appropriately
+			// Strip .value from iterator references if present
 			commentExpr = stripIteratorValueSuffix(commentExpr, iteratorName)
 			items = append(items, hclsyntax.ObjectConsItem{
 				KeyExpr:   ast.NewKeyExpr("comment"),
@@ -188,6 +180,14 @@ func buildObjectFromContentBlock(contentBlock *hclwrite.Block, kind string, iter
 			})
 		}
 		diags.HclDiagnostics.Extend(d)
+	}
+	
+	// Process value block based on kind
+	for _, vBlock := range contentBody.Blocks() {
+		if vBlock.Type() == "value" {
+			valueItems := extractValueBlockItems(vBlock, kind, iteratorName, diags)
+			items = append(items, valueItems...)
+		}
 	}
 	
 	if len(items) == 0 {
@@ -208,7 +208,7 @@ func extractValueBlockItems(vBlock *hclwrite.Block, kind string, iteratorName st
 			ipBytes := ipAttr.Expr().BuildTokens(nil).Bytes()
 			ipExpr, d := hclsyntax.ParseExpression(ipBytes, "ip", hcl.InitialPos)
 			if !d.HasErrors() {
-				// Handle iterator references appropriately
+				// Strip .value from iterator references if present
 				ipExpr = stripIteratorValueSuffix(ipExpr, iteratorName)
 				items = append(items, hclsyntax.ObjectConsItem{
 					KeyExpr:   ast.NewKeyExpr("ip"),
@@ -223,7 +223,7 @@ func extractValueBlockItems(vBlock *hclwrite.Block, kind string, iteratorName st
 			asnBytes := asnAttr.Expr().BuildTokens(nil).Bytes()
 			asnExpr, d := hclsyntax.ParseExpression(asnBytes, "asn", hcl.InitialPos)
 			if !d.HasErrors() {
-				// Handle iterator references appropriately
+				// Strip .value from iterator references if present
 				asnExpr = stripIteratorValueSuffix(asnExpr, iteratorName)
 				items = append(items, hclsyntax.ObjectConsItem{
 					KeyExpr:   ast.NewKeyExpr("asn"),
@@ -237,7 +237,7 @@ func extractValueBlockItems(vBlock *hclwrite.Block, kind string, iteratorName st
 		// Handle hostname nested structure
 		for _, hBlock := range vBody.Blocks() {
 			if hBlock.Type() == "hostname" {
-				hostnameObj := buildHostnameObjectWithIterator(hBlock, iteratorName, diags)
+				hostnameObj := buildHostnameObject(hBlock, diags)
 				if hostnameObj != nil {
 					items = append(items, hclsyntax.ObjectConsItem{
 						KeyExpr:   ast.NewKeyExpr("hostname"),
@@ -251,7 +251,7 @@ func extractValueBlockItems(vBlock *hclwrite.Block, kind string, iteratorName st
 		// Handle redirect nested structure with boolean conversions
 		for _, rBlock := range vBody.Blocks() {
 			if rBlock.Type() == "redirect" {
-				redirectObj := buildRedirectObjectWithIterator(rBlock, iteratorName, diags)
+				redirectObj := buildRedirectObject(rBlock, diags)
 				if redirectObj != nil {
 					items = append(items, hclsyntax.ObjectConsItem{
 						KeyExpr:   ast.NewKeyExpr("redirect"),
@@ -265,13 +265,8 @@ func extractValueBlockItems(vBlock *hclwrite.Block, kind string, iteratorName st
 	return items
 }
 
-// buildHostnameObject creates a hostname object expression (for static blocks)
+// buildHostnameObject creates a hostname object expression
 func buildHostnameObject(hBlock *hclwrite.Block, diags ast.Diagnostics) hclsyntax.Expression {
-	return buildHostnameObjectWithIterator(hBlock, "", diags)
-}
-
-// buildHostnameObjectWithIterator creates a hostname object expression with iterator handling
-func buildHostnameObjectWithIterator(hBlock *hclwrite.Block, iteratorName string, diags ast.Diagnostics) hclsyntax.Expression {
 	hBody := hBlock.Body()
 	items := []hclsyntax.ObjectConsItem{}
 	
@@ -279,10 +274,6 @@ func buildHostnameObjectWithIterator(hBlock *hclwrite.Block, iteratorName string
 		urlBytes := urlAttr.Expr().BuildTokens(nil).Bytes()
 		urlExpr, d := hclsyntax.ParseExpression(urlBytes, "url_hostname", hcl.InitialPos)
 		if !d.HasErrors() {
-			// Handle iterator references if present
-			if iteratorName != "" {
-				urlExpr = stripIteratorValueSuffix(urlExpr, iteratorName)
-			}
 			items = append(items, hclsyntax.ObjectConsItem{
 				KeyExpr:   ast.NewKeyExpr("url_hostname"),
 				ValueExpr: urlExpr,
@@ -298,19 +289,14 @@ func buildHostnameObjectWithIterator(hBlock *hclwrite.Block, iteratorName string
 	return &hclsyntax.ObjectConsExpr{Items: items}
 }
 
-// buildRedirectObject creates a redirect object expression with boolean conversions (for static blocks)
+// buildRedirectObject creates a redirect object expression with boolean conversions
 func buildRedirectObject(rBlock *hclwrite.Block, diags ast.Diagnostics) hclsyntax.Expression {
-	return buildRedirectObjectWithIterator(rBlock, "", diags)
-}
-
-// buildRedirectObjectWithIterator creates a redirect object expression with iterator handling
-func buildRedirectObjectWithIterator(rBlock *hclwrite.Block, iteratorName string, diags ast.Diagnostics) hclsyntax.Expression {
 	rBody := rBlock.Body()
 	items := []hclsyntax.ObjectConsItem{}
 	
-	// Required fields - need iterator handling
-	addStringAttributeWithIterator(rBody, "source_url", &items, iteratorName, diags)
-	addStringAttributeWithIterator(rBody, "target_url", &items, iteratorName, diags)
+	// Required fields
+	addStringAttribute(rBody, "source_url", &items, diags)
+	addStringAttribute(rBody, "target_url", &items, diags)
 	
 	// Boolean fields that need conversion from "enabled"/"disabled"
 	boolFields := []string{
@@ -333,10 +319,6 @@ func buildRedirectObjectWithIterator(rBlock *hclwrite.Block, iteratorName string
 				bytes := attr.Expr().BuildTokens(nil).Bytes()
 				var d hcl.Diagnostics
 				boolExpr, d = hclsyntax.ParseExpression(bytes, field, hcl.InitialPos)
-				if !d.HasErrors() && iteratorName != "" {
-					// Handle iterator references in complex expressions
-					boolExpr = stripIteratorValueSuffix(boolExpr, iteratorName)
-				}
 				diags.HclDiagnostics.Extend(d)
 			}
 			
@@ -349,8 +331,8 @@ func buildRedirectObjectWithIterator(rBlock *hclwrite.Block, iteratorName string
 		}
 	}
 	
-	// Optional status_code - need iterator handling
-	addNumberAttributeWithIterator(rBody, "status_code", &items, iteratorName, diags)
+	// Optional status_code
+	addNumberAttribute(rBody, "status_code", &items, diags)
 	
 	if len(items) == 0 {
 		return nil
@@ -362,18 +344,10 @@ func buildRedirectObjectWithIterator(rBlock *hclwrite.Block, iteratorName string
 // Helper functions
 
 func addStringAttribute(body *hclwrite.Body, name string, items *[]hclsyntax.ObjectConsItem, diags ast.Diagnostics) {
-	addStringAttributeWithIterator(body, name, items, "", diags)
-}
-
-func addStringAttributeWithIterator(body *hclwrite.Body, name string, items *[]hclsyntax.ObjectConsItem, iteratorName string, diags ast.Diagnostics) {
 	if attr := body.GetAttribute(name); attr != nil {
 		bytes := attr.Expr().BuildTokens(nil).Bytes()
 		expr, d := hclsyntax.ParseExpression(bytes, name, hcl.InitialPos)
 		if !d.HasErrors() {
-			// Handle iterator references if present
-			if iteratorName != "" {
-				expr = stripIteratorValueSuffix(expr, iteratorName)
-			}
 			*items = append(*items, hclsyntax.ObjectConsItem{
 				KeyExpr:   ast.NewKeyExpr(name),
 				ValueExpr: expr,
@@ -384,18 +358,10 @@ func addStringAttributeWithIterator(body *hclwrite.Body, name string, items *[]h
 }
 
 func addNumberAttribute(body *hclwrite.Body, name string, items *[]hclsyntax.ObjectConsItem, diags ast.Diagnostics) {
-	addNumberAttributeWithIterator(body, name, items, "", diags)
-}
-
-func addNumberAttributeWithIterator(body *hclwrite.Body, name string, items *[]hclsyntax.ObjectConsItem, iteratorName string, diags ast.Diagnostics) {
 	if attr := body.GetAttribute(name); attr != nil {
 		bytes := attr.Expr().BuildTokens(nil).Bytes()
 		expr, d := hclsyntax.ParseExpression(bytes, name, hcl.InitialPos)
 		if !d.HasErrors() {
-			// Handle iterator references if present
-			if iteratorName != "" {
-				expr = stripIteratorValueSuffix(expr, iteratorName)
-			}
 			*items = append(*items, hclsyntax.ObjectConsItem{
 				KeyExpr:   ast.NewKeyExpr(name),
 				ValueExpr: expr,
@@ -463,15 +429,7 @@ func buildObjectFromItemBlock(block *hclwrite.Block, kind string, diags ast.Diag
 	body := block.Body()
 	items := []hclsyntax.ObjectConsItem{}
 	
-	// Process value block first (to get ip, asn, hostname, redirect before comment)
-	for _, vBlock := range body.Blocks() {
-		if vBlock.Type() == "value" {
-			valueItems := extractValueBlockItems(vBlock, kind, "", diags)
-			items = append(items, valueItems...)
-		}
-	}
-	
-	// Then handle comment
+	// Handle comment
 	if commentAttr := body.GetAttribute("comment"); commentAttr != nil {
 		commentBytes := commentAttr.Expr().BuildTokens(nil).Bytes()
 		commentExpr, d := hclsyntax.ParseExpression(commentBytes, "comment", hcl.InitialPos)
@@ -484,6 +442,14 @@ func buildObjectFromItemBlock(block *hclwrite.Block, kind string, diags ast.Diag
 		diags.HclDiagnostics.Extend(d)
 	}
 	
+	// Process value block
+	for _, vBlock := range body.Blocks() {
+		if vBlock.Type() == "value" {
+			valueItems := extractValueBlockItems(vBlock, kind, "", diags)
+			items = append(items, valueItems...)
+		}
+	}
+	
 	if len(items) == 0 {
 		return nil
 	}
@@ -491,28 +457,27 @@ func buildObjectFromItemBlock(block *hclwrite.Block, kind string, diags ast.Diag
 	return &hclsyntax.ObjectConsExpr{Items: items}
 }
 
-// transformStaticItemBlocks handles pure static item blocks using AST for proper ordering
+// transformStaticItemBlocks handles pure static item blocks (simplified version)
 func transformStaticItemBlocks(body *hclwrite.Body, itemBlocks []*hclwrite.Block, kind string) {
-	if len(itemBlocks) == 0 {
-		return
+	// This is the simplified version for static-only lists
+	items := []cty.Value{}
+	
+	for _, itemBlock := range itemBlocks {
+		itemBody := itemBlock.Body()
+		itemValue := transformItemBlockSimple(itemBody, kind)
+		if !itemValue.IsNull() {
+			items = append(items, itemValue)
+		}
 	}
-	
-	// Use AST-based approach for proper attribute ordering
-	diags := ast.Diagnostics{}
-	
-	// Build AST expression for items
-	itemsExpr := buildStaticItemsExpression(itemBlocks, kind, diags)
 	
 	// Remove all item blocks
 	for _, itemBlock := range itemBlocks {
 		body.RemoveBlock(itemBlock)
 	}
 	
-	// Add the new items attribute if we have an expression
-	if itemsExpr != nil {
-		// Convert AST expression to hclwrite expression
-		writeExpr := ast.Expr2WriteExpr(itemsExpr, diags)
-		body.SetAttributeRaw("items", writeExpr.BuildTokens(nil))
+	// Add the new items attribute if we have any items
+	if len(items) > 0 {
+		body.SetAttributeValue("items", cty.TupleVal(items))
 	}
 }
 
@@ -729,134 +694,36 @@ func addDiagnosticsAsComments(body *hclwrite.Body, diags ast.Diagnostics) {
 	}
 }
 
-// stripIteratorValueSuffix intelligently handles iterator references when converting 
-// from dynamic blocks to for expressions.
-// 
-// In dynamic blocks, the iterator has .key and .value properties.
-// In for expressions:
-// - If iterating over simple values: item.value -> item
-// - If iterating over objects with properties: item.value.prop -> item.prop  
-// - The .key accessor is preserved as-is
+// stripIteratorValueSuffix removes the .value suffix from iterator references in dynamic blocks
+// When converting from dynamic blocks to for expressions, iterator.value becomes just iterator
 func stripIteratorValueSuffix(expr hclsyntax.Expression, iteratorName string) hclsyntax.Expression {
 	if iteratorName == "" {
-		return expr
-	}
-	
-	// Handle template expressions (string interpolations)
-	if template, ok := expr.(*hclsyntax.TemplateExpr); ok {
-		newParts := make([]hclsyntax.Expression, len(template.Parts))
-		changed := false
-		for i, part := range template.Parts {
-			newPart := stripIteratorValueSuffix(part, iteratorName)
-			if newPart != part {
-				changed = true
-			}
-			newParts[i] = newPart
-		}
-		if changed {
-			return &hclsyntax.TemplateExpr{
-				Parts: newParts,
-			}
-		}
-		return expr
-	}
-	
-	// Handle wrapped template expressions
-	if wrapped, ok := expr.(*hclsyntax.TemplateWrapExpr); ok {
-		inner := stripIteratorValueSuffix(wrapped.Wrapped, iteratorName)
-		if inner != wrapped.Wrapped {
-			return &hclsyntax.TemplateWrapExpr{
-				Wrapped: inner,
-			}
-		}
-		return expr
-	}
-	
-	// Handle conditional expressions (ternary)
-	if cond, ok := expr.(*hclsyntax.ConditionalExpr); ok {
-		newCond := stripIteratorValueSuffix(cond.Condition, iteratorName)
-		newTrue := stripIteratorValueSuffix(cond.TrueResult, iteratorName)
-		newFalse := stripIteratorValueSuffix(cond.FalseResult, iteratorName)
-		
-		// Special handling for "enabled"/"disabled" string literals in conditionals
-		// Convert them to boolean values for the redirect fields
-		if litTrue, ok := newTrue.(*hclsyntax.TemplateExpr); ok && len(litTrue.Parts) == 1 {
-			if litVal, ok := litTrue.Parts[0].(*hclsyntax.LiteralValueExpr); ok {
-				if litVal.Val.Type() == cty.String {
-					strVal := litVal.Val.AsString()
-					if strVal == "enabled" {
-						newTrue = &hclsyntax.LiteralValueExpr{Val: cty.BoolVal(true)}
-					} else if strVal == "disabled" {
-						newTrue = &hclsyntax.LiteralValueExpr{Val: cty.BoolVal(false)}
-					}
-				}
-			}
-		}
-		
-		if litFalse, ok := newFalse.(*hclsyntax.TemplateExpr); ok && len(litFalse.Parts) == 1 {
-			if litVal, ok := litFalse.Parts[0].(*hclsyntax.LiteralValueExpr); ok {
-				if litVal.Val.Type() == cty.String {
-					strVal := litVal.Val.AsString()
-					if strVal == "enabled" {
-						newFalse = &hclsyntax.LiteralValueExpr{Val: cty.BoolVal(true)}
-					} else if strVal == "disabled" {
-						newFalse = &hclsyntax.LiteralValueExpr{Val: cty.BoolVal(false)}
-					}
-				}
-			}
-		}
-		
-		if newCond != cond.Condition || newTrue != cond.TrueResult || newFalse != cond.FalseResult {
-			return &hclsyntax.ConditionalExpr{
-				Condition:   newCond,
-				TrueResult:  newTrue,
-				FalseResult: newFalse,
-			}
-		}
 		return expr
 	}
 	
 	// Check if this is a traversal expression
 	if traversal, ok := expr.(*hclsyntax.ScopeTraversalExpr); ok {
 		if len(traversal.Traversal) >= 2 {
-			// Check if it starts with iteratorName
+			// Check if it starts with iteratorName.value
 			if root, ok := traversal.Traversal[0].(hcl.TraverseRoot); ok && root.Name == iteratorName {
-				if attr, ok := traversal.Traversal[1].(hcl.TraverseAttr); ok {
-					// Handle iterator.key - preserve as-is (not supported for lists)
-					if attr.Name == "key" {
-						// For lists, we'd need to handle this differently (index)
-						// For now, preserve as-is
-						return expr
+				if attr, ok := traversal.Traversal[1].(hcl.TraverseAttr); ok && attr.Name == "value" {
+					// Remove the .value part and keep the rest
+					newTraversal := make(hcl.Traversal, 0, len(traversal.Traversal))
+					newTraversal = append(newTraversal, hcl.TraverseRoot{Name: iteratorName})
+					
+					// Add any remaining traversal parts after .value
+					if len(traversal.Traversal) > 2 {
+						newTraversal = append(newTraversal, traversal.Traversal[2:]...)
 					}
 					
-					// Handle iterator.value
-					if attr.Name == "value" {
-						// Check if there are more parts after .value
-						if len(traversal.Traversal) > 2 {
-							// iterator.value.something -> iterator.something
-							// This handles cases where for_each iterates over objects
-							newTraversal := make(hcl.Traversal, 0, len(traversal.Traversal)-1)
-							newTraversal = append(newTraversal, hcl.TraverseRoot{Name: iteratorName})
-							newTraversal = append(newTraversal, traversal.Traversal[2:]...)
-							
-							return &hclsyntax.ScopeTraversalExpr{
-								Traversal: newTraversal,
-							}
-						} else {
-							// Just iterator.value -> iterator
-							// This handles cases where for_each iterates over simple values
-							return &hclsyntax.ScopeTraversalExpr{
-								Traversal: hcl.Traversal{
-									hcl.TraverseRoot{Name: iteratorName},
-								},
-							}
-						}
+					return &hclsyntax.ScopeTraversalExpr{
+						Traversal: newTraversal,
 					}
 				}
 			}
 		}
 	}
 	
-	// Return unchanged if not an iterator pattern we recognize
+	// Return unchanged if not an iterator.value pattern
 	return expr
 }

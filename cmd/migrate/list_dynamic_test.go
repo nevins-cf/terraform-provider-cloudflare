@@ -7,7 +7,7 @@ import (
 func TestCloudflareListDynamicBlockTransformations(t *testing.T) {
 	tests := []TestCase{
 		{
-			Name: "simple dynamic block with for_each list",
+			Name: "simple dynamic block with for_each",
 			Config: `
 resource "cloudflare_list" "test" {
   account_id = "abc123"
@@ -20,7 +20,7 @@ resource "cloudflare_list" "test" {
       value {
         ip = item.value
       }
-      comment = "IP ${item.value}"
+      comment = "IP ${item.key}"
     }
   }
 }`,
@@ -32,8 +32,8 @@ resource "cloudflare_list" "test" {
 
   items = [
     for item in var.ip_list : {
-      ip      = item
-      comment = "IP ${item}"
+      ip      = item.value
+      comment = "IP ${item.key}"
     }
   ]
 }`},
@@ -65,8 +65,8 @@ resource "cloudflare_list" "test" {
 
   items = [
     for ip in var.ip_addresses : {
-      ip      = ip
-      comment = "Address: ${ip}"
+      ip      = ip.value
+      comment = "Address: ${ip.value}"
     }
   ]
 }`},
@@ -87,7 +87,7 @@ resource "cloudflare_list" "test" {
           url_hostname = item.value
         }
       }
-      comment = "Hostname: ${item.value}"
+      comment = "Hostname: ${item.key}"
     }
   }
 }`,
@@ -100,9 +100,9 @@ resource "cloudflare_list" "test" {
   items = [
     for item in var.hostnames : {
       hostname = {
-        url_hostname = item
+        url_hostname = item.value
       }
-      comment = "Hostname: ${item}"
+      comment = "Hostname: ${item.key}"
     }
   ]
 }`},
@@ -128,7 +128,7 @@ resource "cloudflare_list" "test" {
       value {
         ip = item.value
       }
-      comment = "Dynamic: ${item.value}"
+      comment = "Dynamic: ${item.key}"
     }
   }
 }`,
@@ -145,8 +145,8 @@ resource "cloudflare_list" "test" {
     }
   ], [
     for item in var.dynamic_ips : {
-      ip      = item
-      comment = "Dynamic: ${item}"
+      ip      = item.value
+      comment = "Dynamic: ${item.key}"
     }
   ])
 }`},
@@ -177,8 +177,8 @@ resource "cloudflare_list" "test" {
 
   items = [
     for item in var.asn_numbers : {
-      asn     = item
-      comment = "ASN ${item}"
+      asn     = item.value
+      comment = "ASN ${item.value}"
     }
   ]
 }`},
@@ -216,12 +216,12 @@ resource "cloudflare_list" "test" {
   items = [
     for item in var.redirects : {
       redirect = {
-        source_url            = item.source
-        target_url            = item.target
+        source_url            = item.value.source
+        target_url            = item.value.target
         include_subdomains    = true
         subpath_matching      = false
-        preserve_query_string = item.preserve_query ? true : false
-        status_code           = item.code
+        preserve_query_string = item.value.preserve_query ? true : false
+        status_code           = item.value.code
       }
     }
   ]
@@ -255,7 +255,7 @@ resource "cloudflare_list" "test" {
   # MIGRATION WARNING: toset() in for_each makes keys and values identical. Consider using a map for distinct keys and values.
   items = [
     for item in toset(var.ip_list) : {
-      ip = item
+      ip = item.value
     }
   ]
 }`},
@@ -286,7 +286,7 @@ resource "cloudflare_list" "test" {
 
   items = [
     for item in var.env == "prod" ? var.prod_ips : var.dev_ips : {
-      ip      = item
+      ip      = item.value
       comment = var.env == "prod" ? "Production IP" : "Development IP"
     }
   ]
@@ -306,7 +306,7 @@ resource "cloudflare_list" "test" {
       value {
         ip = item.value
       }
-      comment = "Internal IP"
+      comment = "Internal: ${item.key}"
     }
   }
 
@@ -316,7 +316,7 @@ resource "cloudflare_list" "test" {
       value {
         ip = item.value
       }
-      comment = "External IP"
+      comment = "External: ${item.key}"
     }
   }
 }`,
@@ -328,13 +328,13 @@ resource "cloudflare_list" "test" {
 
   items = concat([
     for item in var.internal_ips : {
-      ip      = item
-      comment = "Internal IP"
+      ip      = item.value
+      comment = "Internal: ${item.key}"
     }
   ], [
     for item in var.external_ips : {
-      ip      = item
-      comment = "External IP"
+      ip      = item.value
+      comment = "External: ${item.key}"
     }
   ])
 }`},
@@ -371,7 +371,7 @@ resource "cloudflare_list" "test" {
 
   items = [
     for item in [] : {
-      ip = item
+      ip = item.value
     }
   ]
 }`},
@@ -401,7 +401,7 @@ resource "cloudflare_list" "test" {
 
   items = [
     for item in [for s in var.subnets : cidrhost(s, 0)] : {
-      ip = item
+      ip = item.value
     }
   ]
 }`},

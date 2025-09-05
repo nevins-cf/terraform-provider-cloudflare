@@ -46,7 +46,6 @@ func TestCloudflareListStateTransformation(t *testing.T) {
 							"account_id": "abc123",
 							"name": "ip_list",
 							"kind": "ip",
-							"num_items": 2,
 							"items": [
 								{
 									"comment": "First IP",
@@ -93,7 +92,6 @@ func TestCloudflareListStateTransformation(t *testing.T) {
 					"instances": [{
 						"attributes": {
 							"kind": "asn",
-							"num_items": 2,
 							"items": [
 								{
 									"comment": "Google ASN",
@@ -136,7 +134,6 @@ func TestCloudflareListStateTransformation(t *testing.T) {
 					"instances": [{
 						"attributes": {
 							"kind": "hostname",
-							"num_items": 1,
 							"items": [
 								{
 									"comment": "Example hostname",
@@ -184,7 +181,6 @@ func TestCloudflareListStateTransformation(t *testing.T) {
 					"instances": [{
 						"attributes": {
 							"kind": "redirect",
-							"num_items": 1,
 							"items": [
 								{
 									"comment": "Main redirect",
@@ -222,8 +218,7 @@ func TestCloudflareListStateTransformation(t *testing.T) {
 					"type": "cloudflare_list",
 					"instances": [{
 						"attributes": {
-							"kind": "ip",
-							"num_items": 0
+							"kind": "ip"
 						}
 					}]
 				}]
