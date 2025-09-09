@@ -37,6 +37,12 @@ func ProcessDNSRecordConfig(file *hclwrite.File) error {
 			continue
 		}
 
+		// Rename cloudflare_record to cloudflare_dns_record
+		if resourceType == "cloudflare_record" {
+			labels[0] = "cloudflare_dns_record"
+			block.SetLabels(labels)
+		}
+
 		// Ensure TTL is present for v5 (required field)
 		ttlAttr := block.Body().GetAttribute("ttl")
 		if ttlAttr == nil {
@@ -49,7 +55,7 @@ func ProcessDNSRecordConfig(file *hclwrite.File) error {
 			block.Body().SetAttributeRaw("ttl", hclwrite.Tokens{ttlToken})
 		}
 
-		// Check if this is a CAA record
+		// Get the record type first
 		typeAttr := block.Body().GetAttribute("type")
 		if typeAttr == nil {
 			continue
@@ -366,51 +372,28 @@ func ProcessDNSRecordConfig(file *hclwrite.File) error {
 // transformDNSRecordStateJSON transforms DNS record state entries from v4 to v5
 
 func transformDNSRecordStateJSON(result string, path string, instance gjson.Result) string {
-	// First check if this instance actually exists and has basic required fields
-	if !instance.Exists() || !instance.Get("attributes").Exists() {
-		// This instance doesn't exist, don't create it
-		return result
-	}
-	
-	// Check if this instance has essential DNS record fields
-	// If it doesn't have name, type, or zone_id, it's likely an invalid/empty instance
-	attrs := instance.Get("attributes")
-	if !attrs.Get("name").Exists() || !attrs.Get("type").Exists() || !attrs.Get("zone_id").Exists() {
-		// This is an incomplete instance, skip it
-		return result
-	}
-	
-	// Clean up meta field - remove if empty or invalid
+	// Ensure meta field exists as a JSON string (not null)
 	meta := instance.Get("attributes.meta")
-	if meta.Exists() {
-		// Remove meta if it's an empty string "{}" or empty object
-		if meta.String() == "{}" || (meta.IsObject() && len(meta.Map()) == 0) {
-			result, _ = sjson.Delete(result, path+".attributes.meta")
-		}
+	if !meta.Exists() || meta.Type == gjson.Null {
+		result, _ = sjson.Set(result, path+".attributes.meta", "{}")
 	}
-	// Don't add meta if it doesn't exist
 
-	// Clean up settings field - remove if all values are null
+	// Ensure settings field exists with proper structure
 	settings := instance.Get("attributes.settings")
-	if settings.Exists() {
-		// Check if all settings values are null
-		flattenCname := settings.Get("flatten_cname")
-		ipv4Only := settings.Get("ipv4_only") 
-		ipv6Only := settings.Get("ipv6_only")
-		
-		allNull := (!flattenCname.Exists() || flattenCname.Type == gjson.Null || flattenCname.Value() == nil) &&
-			(!ipv4Only.Exists() || ipv4Only.Type == gjson.Null || ipv4Only.Value() == nil) &&
-			(!ipv6Only.Exists() || ipv6Only.Type == gjson.Null || ipv6Only.Value() == nil)
-		
-		if allNull {
-			// Remove settings entirely if all values are null
-			result, _ = sjson.Delete(result, path+".attributes.settings")
+	if !settings.Exists() || settings.Type == gjson.Null {
+		settingsObj := map[string]interface{}{
+			"flatten_cname": nil,
+			"ipv4_only":     nil,
+			"ipv6_only":     nil,
 		}
+		result, _ = sjson.Set(result, path+".attributes.settings", settingsObj)
 	}
-	// Don't add settings if it doesn't exist
 
-	// Don't add proxiable if it doesn't exist - it's a computed field
-	// The provider will set it based on the record type
+	// Ensure proxiable field exists
+	proxiable := instance.Get("attributes.proxiable")
+	if !proxiable.Exists() {
+		result, _ = sjson.Set(result, path+".attributes.proxiable", false)
+	}
 
 	// Ensure timestamp fields exist with default values if missing
 	// These are computed fields that should always exist in v5
@@ -623,12 +606,6 @@ func transformDNSRecordStateJSON(result string, path string, instance gjson.Resu
 			}
 		}
 
-		// Check if dataObj is empty after processing
-		if len(dataObj) == 0 {
-			// Empty object - remove the data field
-			result, _ = sjson.Delete(result, path+".attributes.data")
-			return result
-		}
 		// Set the data back as an object (not array) with all fields
 		result, _ = sjson.Set(result, path+".attributes.data", dataObj)
 	} else if data.IsObject() {
@@ -727,6 +704,23 @@ func transformDNSRecordStateJSON(result string, path string, instance gjson.Resu
 			// Set the data back with all fields
 			result, _ = sjson.Set(result, path+".attributes.data", dataObj)
 		}
+	}
+
+	// For SRV and URI records, ensure priority is at root level if it exists in data
+	// MX records have priority at root level in both v4 and v5
+	if recordType == "SRV" || recordType == "URI" {
+		// Check if priority exists in dataObj
+		if priority, ok := dataObj["priority"]; ok && priority != nil {
+			// Set priority at root level as well
+			result, _ = sjson.Set(result, path+".attributes.priority", priority)
+		}
+
+		if _, hasFlags := dataObj["flags"]; !hasFlags {
+			dataObj["flags"] = nil
+		}
+
+		// Set the data back with all fields
+		result, _ = sjson.Set(result, path+".attributes.data", dataObj)
 	}
 
 	// For SRV and URI records, ensure priority is at root level if it exists in data

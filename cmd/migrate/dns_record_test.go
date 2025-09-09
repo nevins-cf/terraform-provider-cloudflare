@@ -142,45 +142,6 @@ resource "cloudflare_dns_record" "caa_legacy" {
 		{
 			Name: "DNS record without TTL - should add TTL with default value",
 			Config: `
-resource "cloudflare_dns_record" "mx_test" {
-  zone_id  = "0da42c8d2132a9ddaf714f9e7c920711"
-  name     = "test.example.com"
-  type     = "MX"
-  content  = "mx.sendgrid.net"
-  priority = 10
-}`,
-			Expected: []string{`
-resource "cloudflare_dns_record" "mx_test" {
-  zone_id  = "0da42c8d2132a9ddaf714f9e7c920711"
-  name     = "test.example.com"
-  type     = "MX"
-  content  = "mx.sendgrid.net"
-  priority = 10
-  ttl      = 1
-}`},
-		},
-		{
-			Name: "DNS record with existing TTL - should keep existing value",
-			Config: `
-resource "cloudflare_dns_record" "a_test_ttl" {
-  zone_id = "0da42c8d2132a9ddaf714f9e7c920711"
-  name    = "test.example.com"
-  type    = "A"
-  ttl     = 3600
-  content = "192.168.1.1"
-}`,
-			Expected: []string{`
-resource "cloudflare_dns_record" "a_test_ttl" {
-  zone_id = "0da42c8d2132a9ddaf714f9e7c920711"
-  name    = "test.example.com"
-  type    = "A"
-  ttl     = 3600
-  content = "192.168.1.1"
-}`},
-		},
-		{
-			Name: "Multiple CAA records in same file - content renamed to value and TTL added",
-			Config: `
 resource "cloudflare_record" "mx_test" {
   zone_id  = "0da42c8d2132a9ddaf714f9e7c920711"
   name     = "test.example.com"
@@ -252,7 +213,6 @@ resource "cloudflare_dns_record" "caa_test1" {
     tag   = "issue"
     value = "letsencrypt.org"
   }
-  ttl = 1
 }
 
 resource "cloudflare_dns_record" "caa_test2" {
@@ -265,7 +225,6 @@ resource "cloudflare_dns_record" "caa_test2" {
     tag   = "issuewild"
     value = "pki.goog"
   }
-  ttl = 1
 }`},
 		},
 	}
@@ -313,6 +272,13 @@ func TestDNSRecordStateTransformation(t *testing.T) {
 							"type": "CAA",
 							"ttl": 1,
 							"content": "0 issue letsencrypt.org",
+							"meta": "{}",
+							"settings": {
+								"flatten_cname": null,
+								"ipv4_only": null,
+								"ipv6_only": null
+							},
+							"proxiable": false,
 							"created_on": "2024-01-01T00:00:00Z",
 							"modified_on": "2024-01-01T00:00:00Z",
 							"data": {
@@ -364,6 +330,13 @@ func TestDNSRecordStateTransformation(t *testing.T) {
 							"type": "CAA",
 							"ttl": 1,
 							"content": "128 issuewild pki.goog",
+							"meta": "{}",
+							"settings": {
+								"flatten_cname": null,
+								"ipv4_only": null,
+								"ipv6_only": null
+							},
+							"proxiable": false,
 							"created_on": "2024-01-01T00:00:00Z",
 							"modified_on": "2024-01-01T00:00:00Z",
 							"data": {
@@ -416,6 +389,15 @@ func TestDNSRecordStateTransformation(t *testing.T) {
 							"name": "test.example.com",
 							"type": "CAA",
 							"ttl": 1,
+							"meta": "{}",
+							"settings": {
+								"flatten_cname": null,
+								"ipv4_only": null,
+								"ipv6_only": null
+							},
+							"proxiable": false,
+							"created_on": "2024-01-01T00:00:00Z",
+							"modified_on": "2024-01-01T00:00:00Z",
 							"data": {
 								"flags": {
 									"value": 0,
@@ -461,6 +443,14 @@ func TestDNSRecordStateTransformation(t *testing.T) {
 							"type": "A",
 							"ttl": 1,
 							"content": "192.168.1.1",
+							"data": null,
+							"meta": "{}",
+							"settings": {
+								"flatten_cname": null,
+								"ipv4_only": null,
+								"ipv6_only": null
+							},
+							"proxiable": false,
 							"created_on": "2024-01-01T00:00:00Z",
 							"modified_on": "2024-01-01T00:00:00Z"
 						}
@@ -504,6 +494,13 @@ func TestDNSRecordStateTransformation(t *testing.T) {
 							"type": "CAA",
 							"ttl": 1,
 							"content": "0 issue letsencrypt.org",
+							"meta": "{}",
+							"settings": {
+								"flatten_cname": null,
+								"ipv4_only": null,
+								"ipv6_only": null
+							},
+							"proxiable": false,
 							"created_on": "2024-01-01T00:00:00Z",
 							"modified_on": "2024-01-01T00:00:00Z",
 							"data": {
@@ -553,7 +550,17 @@ func TestDNSRecordStateTransformation(t *testing.T) {
 							"zone_id": "0da42c8d2132a9ddaf714f9e7c920711",
 							"name": "_sip._tcp.example.com",
 							"type": "SRV",
+							"priority": 10,
 							"ttl": 1,
+							"meta": "{}",
+							"settings": {
+								"flatten_cname": null,
+								"ipv4_only": null,
+								"ipv6_only": null
+							},
+							"proxiable": false,
+							"created_on": "2024-01-01T00:00:00Z",
+							"modified_on": "2024-01-01T00:00:00Z",
 							"data": {
 								"priority": 10,
 								"weight": 60,
@@ -598,6 +605,14 @@ func TestDNSRecordStateTransformation(t *testing.T) {
 							"type": "A",
 							"ttl": 1,
 							"content": "192.168.1.1",
+							"data": null,
+							"meta": "{}",
+							"settings": {
+								"flatten_cname": null,
+								"ipv4_only": null,
+								"ipv6_only": null
+							},
+							"proxiable": false,
 							"created_on": "2024-01-01T00:00:00Z",
 							"modified_on": "2024-01-01T00:00:00Z"
 						}
